@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gem Match</title>
+<style>
+:root{--bg:#fdf3ff;--card:#fff;--text:#2b2430;--accent:#9b3df5;--muted:#8a7f93;--line:#e6d6f0;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17131f;--card:#262030;--text:#f3eefa;--muted:#a79bb5;--line:#3a3245}}
+:root[data-theme="dark"]{--bg:#17131f;--card:#262030;--text:#f3eefa;--muted:#a79bb5;--line:#3a3245}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0 auto;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;max-width:480px;padding:12px;user-select:none;-webkit-user-select:none}
+.top{display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-bottom:6px}
+.stats{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);margin-bottom:8px}
+.prog{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin-bottom:10px}
+#fill{height:100%;width:0;background:var(--accent);transition:width .3s}
+#board{display:grid;grid-template-columns:repeat(8,1fr);gap:3px;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:6px;touch-action:none;position:relative}
+.g{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:clamp(20px,7vw,32px);border-radius:10px;background:var(--bg);transition:transform .15s,opacity .2s}
+.g.sel{outline:3px solid var(--accent);transform:scale(1.08)}
+.g.clr{transform:scale(.2);opacity:0}
+#msg{margin-top:10px;text-align:center;min-height:24px;font-weight:700}
+button{font:inherit;font-weight:700;background:var(--accent);color:#fff;border:0;border-radius:12px;padding:10px 20px;cursor:pointer;margin-top:8px}
+.c{text-align:center}
+</style>
+</head>
+<body>
+<div class="top"><span>💎 Gem Match</span><span id="lvl"></span></div>
+<div class="stats"><span id="sc"></span><span id="mv"></span><span id="bs"></span></div>
+<div class="prog"><div id="fill"></div></div>
+<div id="board"></div>
+<div id="msg"></div>
+<div class="c"><button id="nx" style="display:none"></button></div>
+<script>
+var N=8,G=["🍒","🍋","🍇","🍀","🔷","🍑"],KEY="gemMatchSave";
+var S={lvl:1,best:0};try{var p=JSON.parse(localStorage.getItem(KEY)||"{}");S.lvl=p.lvl||1;S.best=p.best||0;}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+var $=function(i){return document.getElementById(i)},bd=$("board");
+var b=[],score=0,moves=0,busy=false,sel=null,target=0,over=false;
+function rnd(){return Math.floor(Math.random()*G.length)}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+function match(){
+  var m={},r,c,k,v;
+  for(r=0;r<N;r++)for(c=0;c<N-2;c++){v=b[r][c];if(v>=0&&v==b[r][c+1]&&v==b[r][c+2]){m[r*N+c]=m[r*N+c+1]=m[r*N+c+2]=1}}
+  for(c=0;c<N;c++)for(r=0;r<N-2;r++){v=b[r][c];if(v>=0&&v==b[r+1][c]&&v==b[r+2][c]){m[r*N+c]=m[(r+1)*N+c]=m[(r+2)*N+c]=1}}
+  return Object.keys(m).map(Number);
+}
+function sw(r1,c1,r2,c2){var t=b[r1][c1];b[r1][c1]=b[r2][c2];b[r2][c2]=t}
+function hasMove(){
+  for(var r=0;r<N;r++)for(var c=0;c<N;c++){
+    if(c<N-1){sw(r,c,r,c+1);var a=match().length;sw(r,c,r,c+1);if(a)return true}
+    if(r<N-1){sw(r,c,r+1,c);var d=match().length;sw(r,c,r+1,c);if(d)return true}
+  }return false;
+}
+function fresh(){
+  do{b=[];for(var r=0;r<N;r++){b.push([]);for(var c=0;c<N;c++)b[r].push(rnd())}}
+  while(match().length||!hasMove());
+}
+function draw(clr){
+  bd.innerHTML="";
+  for(var r=0;r<N;r++)for(var c=0;c<N;c++){
+    var d=document.createElement("div"),i=r*N+c;
+    d.className="g"+(sel&&sel[0]==r&&sel[1]==c?" sel":"")+(clr&&clr.indexOf(i)>=0?" clr":"");
+    d.textContent=b[r][c]>=0?G[b[r][c]]:"";d.dataset.r=r;d.dataset.c=c;bd.appendChild(d);
+  }
+  $("sc").textContent="Score "+score+"/"+target;$("mv").textContent="Moves "+moves;$("bs").textContent="Best "+S.best;
+  $("lvl").textContent="Level "+S.lvl;$("fill").style.width=Math.min(100,score/target*100)+"%";
+}
+function collapse(){
+  for(var c=0;c<N;c++){
+    var col=[];for(var r=N-1;r>=0;r--)if(b[r][c]>=0)col.push(b[r][c]);
+    while(col.length<N)col.push(rnd());
+    for(r=0;r<N;r++)b[N-1-r][c]=col[r];
+  }
+}
+async function resolve(){
+  var combo=0,m;
+  while((m=match()).length){
+    combo++;score+=m.length*10*combo;
+    draw(m);await sleep(250);
+    m.forEach(function(i){b[Math.floor(i/N)][i%N]=-1});
+    collapse();draw();await sleep(200);
+  }
+  if(combo>1)$("msg").textContent="Combo x"+combo+"!";
+}
+async function trySwap(r1,c1,r2,c2){
+  if(busy||over)return;busy=true;sel=null;$("msg").textContent="";
+  sw(r1,c1,r2,c2);draw();await sleep(150);
+  if(!match().length){sw(r1,c1,r2,c2);draw();busy=false;return}
+  moves--;await resolve();
+  if(score>S.best){S.best=score;save()}
+  if(!hasMove()){$("msg").textContent="No moves — reshuffling";fresh();}
+  draw();
+  if(score>=target){over=true;$("msg").textContent="Level cleared! 🎉";S.lvl++;save();btn("Next level")}
+  else if(moves<=0){over=true;$("msg").textContent="Out of moves";btn("Try again")}
+  busy=false;
+}
+function btn(t){var n=$("nx");n.textContent=t;n.style.display="inline-block"}
+function startLevel(){
+  target=300+200*(S.lvl-1);moves=20;score=0;over=false;busy=false;sel=null;
+  $("nx").style.display="none";$("msg").textContent="";fresh();draw();
+}
+$("nx").onclick=startLevel;
+var st=null;
+bd.addEventListener("pointerdown",function(e){var t=e.target;if(t.dataset.r!==undefined)st={r:+t.dataset.r,c:+t.dataset.c,x:e.clientX,y:e.clientY}});
+bd.addEventListener("pointerup",function(e){
+  if(!st||busy||over){st=null;return}
+  var dx=e.clientX-st.x,dy=e.clientY-st.y,r=st.r,c=st.c;st=null;
+  if(Math.max(Math.abs(dx),Math.abs(dy))>25){
+    var r2=r,c2=c;if(Math.abs(dx)>Math.abs(dy))c2+=dx>0?1:-1;else r2+=dy>0?1:-1;
+    if(r2>=0&&r2<N&&c2>=0&&c2<N)trySwap(r,c,r2,c2);return;
+  }
+  if(!sel){sel=[r,c];draw()}
+  else if(Math.abs(sel[0]-r)+Math.abs(sel[1]-c)==1){var s=sel;trySwap(s[0],s[1],r,c)}
+  else{sel=[r,c];draw()}
+});
+startLevel();
+</script>
+</body>
+</html>
